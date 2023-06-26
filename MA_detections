@@ -1,0 +1,115 @@
+import numpy as np
+import cv2 as cv2
+from matplotlib import pyplot as plt
+
+
+#read image
+image = cv2.imread('ma2.JPG', cv2.IMREAD_UNCHANGED)
+print(image.shape)
+#Resizing the image 
+scale_percent = 20
+width = int(image.shape[1] * scale_percent / 100)
+height = int(image.shape[0] * scale_percent / 100)
+dim = (width, height)
+  
+# resize image
+src = cv2.resize(image, dim, interpolation = cv2.INTER_AREA)
+ 
+cv2.imshow('og image',src)
+cv2.waitKey()
+
+#converting BGR to GRAY
+img_gray = cv2.cvtColor(src, cv2.COLOR_BGR2GRAY)
+#cv2.imshow('img_gray',img_gray)
+#cv2.waitKey(0)
+
+
+#Extracting green channel
+src[:,:,0] = 0
+src[:,:,2] = 0
+green_channel = src
+
+# #show image
+#cv2.imshow('green_img',green_channel)
+#cv2.waitKey()
+# cv2.destroyAllWindows()
+
+# create a CLAHE object (Arguments are optional).
+clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8,8))
+srv = clahe.apply(img_gray)
+cv2.imshow('clahe',srv)
+cv2.waitKey()
+
+#hole filling operation
+kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE,(1,1))
+res = cv2.morphologyEx(srv,cv2.MORPH_OPEN,kernel)
+cv2.imshow('hole filled',res)
+cv2.waitKey()
+
+
+#image dilation 
+kernel = np.ones((11, 11), np.uint8)
+img_dilation = cv2.dilate(green_channel, kernel, iterations=1)
+#cv2.imshow('Input', green_channel)
+cv2.imshow('Dilation', img_dilation)
+cv2.waitKey(0)
+
+#image erosion
+img_erosion = cv2.erode(img_dilation, kernel, iterations=1)
+cv2.imshow('img_erosion', img_erosion)
+cv2.waitKey(0)
+
+#converting BGR to GRAY
+erosion_grey = cv2.cvtColor(img_erosion, cv2.COLOR_BGR2GRAY)
+#cv2.imshow('erosion_grey',erosion_grey)
+#cv2.waitKey(0)
+
+# subtract the images
+sub = cv2.subtract(res, erosion_grey)
+cv2.imshow('sub', sub)
+cv2.waitKey(0)
+
+#ostu thresholding
+ret, thresh1 = cv2.threshold(sub, 70, 255, cv2.THRESH_BINARY + 
+                                            cv2.THRESH_OTSU)     
+ 
+cv2.imshow('Otsu Threshold', thresh1)         
+cv2.waitKey(0)
+
+import skimage.morphology as morph
+
+#extended minima transform 
+def extendedmin(img, H):
+    mask = img.copy() 
+    marker = mask + H  
+    hmin =  morph.reconstruction(marker, mask, method='erosion')
+    return morph.local_minima(hmin)
+
+
+img_emt = extendedmin(sub,50)
+print(img_emt) #printing as array 
+
+#converting boolean to int
+indices = img_emt.astype(int)  #To convert the true to 1 and false to 0
+indices*=255                   #To change all the 1's to 255
+print(indices)
+cv2.waitKey()
+
+
+
+#converting int 2d array to image 
+image_data = indices.astype(np.uint8)
+cv2.imshow('Emt_final',image_data)
+cv2.waitKey()
+
+#substraction
+sub2 = cv2.subtract(image_data, thresh1)
+cv2.imshow('sub', sub2)
+cv2.waitKey(0)
+
+#ostu thresholding
+ret, thresh2 = cv2.threshold(sub2, 70, 255, cv2.THRESH_BINARY + 
+                                            cv2.THRESH_OTSU)     
+ 
+cv2.imshow('Otsu Threshold final', thresh2)               
+cv2.waitKey(0)
